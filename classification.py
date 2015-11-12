@@ -10,6 +10,7 @@ from sklearn.preprocessing import Imputer
 
 import csv
 import numpy as np
+import datetime
 
 class classification:
 
@@ -90,7 +91,7 @@ class classification:
             output_data.append(output_row)
 
         # Write to output file
-        with open(OUTPUT_DIR + '/' + filename, 'w', newline='') as fp:
+        with open(OUTPUT_DIR + '/' + filename + '.txt', 'w', newline='') as fp:
             a = csv.writer(fp, delimiter='\t')
             a.writerows(output_data)
 
@@ -130,6 +131,16 @@ class classification:
             estimators *= i
         return scores
 
+    def classifier_bagging_trees_and_decision(self, X, y, test_data, scores):
+        # Based on ACU scores we noticed decision tree is doing quite well for first and second classifier and bagging for third.
+        estimators = 10
+        print("Running mix of bagging tree and decision tree classifiers with " + str(estimators) + " estimators...")
+        tree1 = DecisionTreeClassifier()
+        tree2 = DecisionTreeClassifier()
+        bagging3 = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
+        scores = self.create_class_specific_classifier(X, y, test_data, scores, tree1, tree2, bagging3, "Bagging_tree_decision_" + str(estimators))
+        return scores
+
     def main(self):
         scores = []
         print("Loading files...")
@@ -143,13 +154,14 @@ class classification:
         imp.fit(training_data, training_label)
         training_data = imp.transform(training_data)
 
-        scores = self.classifier_tree(training_data, training_label, test_data, scores)
-        scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
+        # scores = self.classifier_tree(training_data, training_label, test_data, scores)
+        # scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
+        scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
 
         print("Cross validation scores are...")
         print(scores)
 
-        with open("scores.csv", 'w') as csvfile:
+        with open("scores.csv", 'a') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=["name", "classifier 1", "classifier 2", "classifier 3"])
             writer.writeheader()
             for data in scores:
