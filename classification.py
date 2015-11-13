@@ -1,6 +1,7 @@
 from config import *
 
 from sklearn.ensemble import BaggingClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import ExtraTreesClassifier
@@ -11,6 +12,7 @@ from sklearn.preprocessing import Imputer
 import csv
 import numpy as np
 import datetime
+from multiprocessing import Pool
 
 class classification:
 
@@ -133,12 +135,23 @@ class classification:
 
     def classifier_bagging_trees_and_decision(self, X, y, test_data, scores):
         # Based on ACU scores we noticed decision tree is doing quite well for first and second classifier and bagging for third.
-        estimators = 10
+        estimators = 60
         print("Running mix of bagging tree and decision tree classifiers with " + str(estimators) + " estimators...")
         tree1 = DecisionTreeClassifier()
         tree2 = DecisionTreeClassifier()
         bagging3 = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
         scores = self.create_class_specific_classifier(X, y, test_data, scores, tree1, tree2, bagging3, "Bagging_tree_decision_" + str(estimators))
+        return scores
+
+    def classifier_random_forests(self, X, y, test_data, scores):
+        estimators = 10
+        for i in range(2, 6):
+            print("Running Random forest classifiers with " + str(estimators) + " estimators...")
+            forest1 = RandomForestClassifier(n_estimators=estimators)
+            forest2 = RandomForestClassifier(n_estimators=estimators)
+            forest3 = RandomForestClassifier(n_estimators=estimators)
+            scores = self.create_class_specific_classifier(X, y, test_data, scores, forest1, forest2, forest3, "forest_" + str(estimators))
+            estimators += (i * 10)
         return scores
 
     def main(self):
@@ -156,7 +169,8 @@ class classification:
 
         # scores = self.classifier_tree(training_data, training_label, test_data, scores)
         # scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
-        scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
+        # scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
+        scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
 
         print("Cross validation scores are...")
         print(scores)
