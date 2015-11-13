@@ -1,5 +1,7 @@
 from config import *
 
+from collections import OrderedDict
+
 from sklearn.ensemble import BaggingClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -8,6 +10,8 @@ from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn import cross_validation
 from sklearn.preprocessing import Imputer
+
+from sklearn.naive_bayes import GaussianNB
 
 import csv
 import numpy as np
@@ -57,39 +61,26 @@ class classification:
                 binary_labels.append(0)
         return binary_labels
 
-    def create_class_specific_classifier(self, X, y, test_data, scores, classifier1, classifier2, classifier3, filename):
+    def create_class_specific_classifier(self, X, y, test_data, scores, classifiers, filename):
         output_data = []
-
-        print("Training first classifier...")
-        labels = self.create_binary_labels(y, 1)
-        classifier1.fit(X, labels)
-        cross_score1 = np.mean(cross_val_score(classifier1, X, y, cv=10))
-        print(classifier1.classes_)
-
-        print("Training second classifier...")
-        labels = self.create_binary_labels(y, 2)
-        classifier2.fit(X, labels)
-        cross_score2 = np.mean(cross_val_score(classifier2, X, y, cv=10))
-        print(classifier2.classes_)
-
-        print("Training third classifier...")
-        labels = self.create_binary_labels(y, 3)
-        classifier3.fit(X, labels)
-        cross_score3 = np.mean(cross_val_score(classifier3, X, y, cv=10))
-        print(classifier3.classes_)
-
-        print("Predicting and calculating probabilities...")
-        conf_scores1 = classifier1.predict_proba(test_data)
-        conf_scores2 = classifier2.predict_proba(test_data)
-        conf_scores3 = classifier3.predict_proba(test_data)
+        conf_scores = []
+        cross_scores = OrderedDict()
+        cross_scores['name'] = filename
+        for key in classifiers.keys():
+            print("Training classifier "+key)
+            labels = self.create_binary_labels(y, 1)
+            classifiers[key].fit(X, labels)
+            cross_scores[key] = np.mean(cross_val_score(classifiers[key], X, y, cv=10))
+            print(classifiers[key].classes_)
+            print("Predicting and calculating probabilities...")
+            conf_scores.append(classifiers[key].predict_proba(test_data))
 
         print("Writing to output file...")
         for index, row in enumerate(test_data):
             output_row = []
-            output_row.append(conf_scores1[index][1])
-            output_row.append(conf_scores2[index][1])
-            output_row.append(conf_scores3[index][1])
-            output_row.append(self.get_final_label(conf_scores1[index][1], conf_scores2[index][1], conf_scores3[index][1]))
+            for conf_score in conf_scores:
+                output_row.append(conf_score[index][1])
+            output_row.append(self.get_final_label(conf_scores))
             output_data.append(output_row)
 
         # Write to output file
@@ -97,62 +88,64 @@ class classification:
             a = csv.writer(fp, delimiter='\t')
             a.writerows(output_data)
 
-        scores.append({"name": filename, "classifier 1": cross_score1, "classifier 2": cross_score2, "classifier 3": cross_score3})
-        return scores
+        return cross_scores
 
-    def get_final_label(self, score1, score2, score3):
+    def get_final_label(self, conf_scores):
+        scoreList = []
+        for score in conf_scores:
+            scoreList.append(float(score[1]))
+
         # TODO Try other methods?
-        max_val = max(float(score1), float(score2), float(score3))
-        if (max_val == float(score1)):
-            return 1
-        elif (max_val == float(score2)):
-            return 2
-        elif(max_val == float(score3)):
-            return 3
-        else:
-            raise Exception('something is seriously wrong, this should never happen.')
-
+        #returns the index of the maximum conf score
+        return conf_scores.index(max(scoreList))+1;
+        
     # Decision tree
     # X : {array-like, sparse matrix} of shape = [n_samples, n_features]
     # Y : array-like, shape = [n_samples]
     def classifier_tree(self, X, y, test_data, scores):
         print("Running tree classifiers...")
-        tree1 = DecisionTreeClassifier()
-        tree2 = DecisionTreeClassifier()
-        tree3 = DecisionTreeClassifier()
-        return self.create_class_specific_classifier(X, y, test_data, scores, tree1, tree2, tree3, "Decision_tree")
+        classifier_dict = OrderedDict()
+        classifier_dict['tree1'] = DecisionTreeClassifier()
+        classifier_dict['tree2'] = DecisionTreeClassifier()
+        classifier_dict['tree3'] = DecisionTreeClassifier()
+        return self.create_class_specific_classifier(X, y, test_data, scores, classifier_dict, "Decision_tree")
 
     def classifier_bagging_trees(self, X, y, test_data, scores):
         estimators = 10
         for i in range(2, 20):
             print("Running bagging tree classifiers with " + str(estimators) + " estimators...")
-            bagging1 = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
-            bagging2 = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
-            bagging3 = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
-            scores = self.create_class_specific_classifier(X, y, test_data, scores, bagging1, bagging2, bagging3, "Bagging_tree_" + str(estimators))
+            classifier_dict = OrderedDict()
+            classifier_dict['bagging1'] = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
+            classifier_dict['bagging2'] = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
+            classifier_dict['bagging3'] = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
+            scores = self.create_class_specific_classifier(X, y, test_data, scores, classifier_dict, "Bagging_tree_" + str(estimators))
             estimators *= i
         return scores
 
     def classifier_bagging_trees_and_decision(self, X, y, test_data, scores):
         # Based on ACU scores we noticed decision tree is doing quite well for first and second classifier and bagging for third.
         estimators = 60
+        classifier_dict = OrderedDict()
         print("Running mix of bagging tree and decision tree classifiers with " + str(estimators) + " estimators...")
-        tree1 = DecisionTreeClassifier()
-        tree2 = DecisionTreeClassifier()
-        bagging3 = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
-        scores = self.create_class_specific_classifier(X, y, test_data, scores, tree1, tree2, bagging3, "Bagging_tree_decision_" + str(estimators))
+        classifier_dict['tree1'] = DecisionTreeClassifier()
+        classifier_dict['tree2'] = DecisionTreeClassifier()
+        classifier_dict['bagging3'] = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
+        scores = self.create_class_specific_classifier(X, y, test_data, scores, classifier_dict, "Bagging_tree_decision_" + str(estimators))
         return scores
 
     def classifier_random_forests(self, X, y, test_data, scores):
         estimators = 10
         for i in range(2, 6):
+            forest_dict = OrderedDict()
             print("Running Random forest classifiers with " + str(estimators) + " estimators...")
-            forest1 = RandomForestClassifier(n_estimators=estimators)
-            forest2 = RandomForestClassifier(n_estimators=estimators)
-            forest3 = RandomForestClassifier(n_estimators=estimators)
-            scores = self.create_class_specific_classifier(X, y, test_data, scores, forest1, forest2, forest3, "forest_" + str(estimators))
+            forest_dict['forest1'] = RandomForestClassifier(n_estimators=estimators)
+            forest_dict['forest2'] = RandomForestClassifier(n_estimators=estimators)
+            forest_dict['forest3'] = RandomForestClassifier(n_estimators=estimators)
+            scores = self.create_class_specific_classifier(X, y, test_data, scores, forest_dict, "forest_" + str(estimators))
             estimators += (i * 10)
         return scores
+
+    #def classifier_bayes_gaussian(self, X, y, test_data, scores):
 
     def main(self):
         scores = []
@@ -174,12 +167,13 @@ class classification:
 
         print("Cross validation scores are...")
         print(scores)
+        fieldnames = ["name", "classifier 1", "classifier 2", "classifier 3"]
 
         with open("scores.csv", 'a') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=["name", "classifier 1", "classifier 2", "classifier 3"])
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            for data in scores:
-                writer.writerow(data)
+            for score in scores:
+                writer.writerow(score)
 
 classification = classification()
 classification.main()
