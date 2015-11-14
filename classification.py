@@ -16,8 +16,15 @@ import csv
 import numpy as np
 import datetime
 
-class classification:
+import concurrent.futures
 
+from queue import Queue
+
+
+
+
+class classification:
+    resultQueue = Queue()
     def load_training_data(self):
         return self.load_tab_file(TRAINING_DATA_FILE)
 
@@ -59,43 +66,94 @@ class classification:
                 binary_labels.append(0)
         return binary_labels
 
-    def create_class_specific_classifier(self, X, y, test_data, scores, classifiers, filename):
-        output_data = []
-        conf_scores = []
-        cross_scores = OrderedDict()
-        cross_scores['name'] = filename
-        for key in classifiers.keys():
+    def create_binary_labels(self, classes, label):
+        binary_labels = []
+        for clas in classes:
+            if int(clas) == int(label):
+                binary_labels.append(1)
+            else:
+                binary_labels.append(0)
+        return binary_labels
+
+
+    def train(self, X, y, test_data, classifier, key):
+        global resultQueue
+        try:
             print("Training classifier "+key)
             labels = self.create_binary_labels(y, 1)
-            classifiers[key].fit(X, labels)
-            cross_scores[key] = np.mean(cross_val_score(classifiers[key], X, y, cv=10))
-            print(classifiers[key].classes_)
+            classifier.fit(X, labels)
+            cross_score = np.mean(cross_val_score(classifier, X, y, cv=10))
+            print("Cross score is:")
+            print(cross_score)
+            print(classifier.classes_)
             print("Predicting and calculating probabilities...")
-            conf_scores.append(classifiers[key].predict_proba(test_data))
+            conf_score = classifier.predict_proba(test_data)
+            print("CONF SCORE IS: ")
+            print(conf_score)
+            resultQueue.put((key, cross_score, conf_score))
+        except Exception as e:
+            print("OH NO IT'S AN EXCEPTION!")
+            print(e)
+        print("Done training classifier "+key)
+
+
+    def create_class_specific_classifier(self, X, y, test_data, scores, classifiers, filename):
+        global resultQueue
+
+        output_data = []
+        conf_scores = OrderedDict()
+        cross_scores = OrderedDict()
+        cross_scores['name'] = filename
+        resultQueue = Queue()
+
+        #Build a list of classifiers in the order they were given to us. 
+        #This will help reorganize everything after going through the ThreadPoolExecutor
+        classNames = []
+        for key in classifiers.keys():
+            classNames.append(key)
+
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            for key in classifiers.keys():
+                    #Pre-populate these scores so that the proper order is maintained
+                    cross_scores[key] = None
+                    conf_scores[key] = None
+                    executor.submit(self.train, X, y, test_data, classifiers[key], key)
+            
+
+        while not resultQueue.empty():
+            data = resultQueue.get();
+            #We have some data!
+            print("Collecting data for the results of "+str(data[0]))
+            #(key, cross_score, conf_score)
+            print("DATA 1 is:")
+            print(data[1])
+            cross_scores[data[0]] = data[1]
+            conf_scores[data[0]] = data[2]
 
         print("Writing to output file...")
         for index, row in enumerate(test_data):
             output_row = []
-            for conf_score in conf_scores:
-                output_row.append(conf_score[index][1])
-            output_row.append(self.get_final_label(conf_scores))
+            for name in classNames:
+                output_row.append(conf_scores[name][index][1])
+            output_row.append(self.get_final_label(output_row))
             output_data.append(output_row)
 
         # Write to output file
         with open(OUTPUT_DIR + '/' + filename + '.txt', 'w', newline='') as fp:
             a = csv.writer(fp, delimiter='\t')
             a.writerows(output_data)
+        #The key is being prepended here. Not sure why...
+        print("CROSS SCORE VALUES ARE:")
 
-        return cross_scores
+        print(dict(cross_scores))
+        return dict(cross_scores)
 
     def get_final_label(self, conf_scores):
-        scoreList = []
-        for score in conf_scores:
-            scoreList.append(float(score[1]))
 
         # TODO Try other methods?
         #returns the index of the maximum conf score
-        return conf_scores.index(max(scoreList))+1;
+        return conf_scores.index(max(conf_scores))+1;
         
     # Decision tree
     # X : {array-like, sparse matrix} of shape = [n_samples, n_features]
@@ -131,6 +189,19 @@ class classification:
         scores = self.create_class_specific_classifier(X, y, test_data, scores, classifier_dict, "Bagging_tree_decision_" + str(estimators))
         return scores
 
+
+    def classifier_random_forests(self, X, y, test_data, scores):
+        estimators = 10
+        for i in range(2, 6):
+            forest_dict = OrderedDict()
+            print("Running Random forest classifiers with " + str(estimators) + " estimators...")
+            forest_dict['forest1'] = RandomForestClassifier(n_estimators=estimators)
+            forest_dict['forest2'] = RandomForestClassifier(n_estimators=estimators)
+            forest_dict['forest3'] = RandomForestClassifier(n_estimators=estimators)
+            scores = self.create_class_specific_classifier(X, y, test_data, scores, forest_dict, "forest_" + str(estimators))
+            estimators += (i * 10)
+        return scores
+        
     #def classifier_bayes_gaussian(self, X, y, test_data, scores):
 
 
@@ -147,19 +218,18 @@ class classification:
         imp.fit(training_data, training_label)
         training_data = imp.transform(training_data)
 
-        # scores = self.classifier_tree(training_data, training_label, test_data, scores)
-        # scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
+        scores = self.classifier_tree(training_data, training_label, test_data, scores)
+        scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
         scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
+        scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
 
         print("Cross validation scores are...")
         print(scores)
-        fieldnames = ["name", "classifier 1", "classifier 2", "classifier 3"]
 
         with open("scores.csv", 'a') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer = csv.DictWriter(csvfile, fieldnames=["name", "tree1", "tree2", "tree3"])
             writer.writeheader()
-            for score in scores:
-                writer.writerow(score)
+            writer.writerow(scores)
 
 classification = classification()
 classification.main()
