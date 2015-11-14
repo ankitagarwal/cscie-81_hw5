@@ -15,12 +15,8 @@ from sklearn.naive_bayes import GaussianNB
 import csv
 import numpy as np
 import datetime
-
 import concurrent.futures
-
 from queue import Queue
-
-
 
 
 class classification:
@@ -56,15 +52,6 @@ class classification:
                     X[row_ind][col_ind] = float('NaN') #Fixed number to identify missing values.
                     # X[row_ind][col_ind] = 2 #Ignore imputation for now, it takes forever.
         return X
-
-    def create_binary_labels(self, classes, label):
-        binary_labels = []
-        for clas in classes:
-            if int(clas) == int(label):
-                binary_labels.append(1)
-            else:
-                binary_labels.append(0)
-        return binary_labels
 
     def create_binary_labels(self, classes, label):
         binary_labels = []
@@ -201,7 +188,19 @@ class classification:
             scores = self.create_class_specific_classifier(X, y, test_data, scores, forest_dict, "forest_" + str(estimators))
             estimators += (i * 10)
         return scores
-        
+
+    def classifier_boosting(self, X, y, test_data, scores):
+        estimators = 10
+        for i in range(2, 6):
+            boosting_dict = OrderedDict()
+            print("Running Boosting classifiers with " + str(estimators) + " estimators...")
+            boosting_dict['boosting1'] = AdaBoostClassifier(DecisionTreeClassifier(), n_estimators=estimators)
+            boosting_dict['boosting2'] = AdaBoostClassifier(DecisionTreeClassifier(), n_estimators=estimators)
+            boosting_dict['boosting3'] = AdaBoostClassifier(DecisionTreeClassifier(), n_estimators=estimators)
+            scores = self.create_class_specific_classifier(X, y, test_data, scores, boosting_dict, "boosting_" + str(estimators))
+            estimators += (i * 10)
+        return scores
+
     #def classifier_bayes_gaussian(self, X, y, test_data, scores):
 
 
@@ -218,10 +217,12 @@ class classification:
         imp.fit(training_data, training_label)
         training_data = imp.transform(training_data)
 
-        scores = self.classifier_tree(training_data, training_label, test_data, scores)
-        scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
-        scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
-        scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
+
+        # scores = self.classifier_tree(training_data, training_label, test_data, scores)
+        # scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
+        # scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
+        # scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
+        scores = self.classifier_boosting(training_data, training_label, test_data, scores)
 
         print("Cross validation scores are...")
         print(scores)
