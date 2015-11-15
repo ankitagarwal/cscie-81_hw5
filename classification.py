@@ -9,6 +9,7 @@ from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn import cross_validation
 from sklearn.preprocessing import Imputer
+from sklearn.linear_model.logistic import LogisticRegression
 
 from sklearn.naive_bayes import GaussianNB
 
@@ -173,9 +174,8 @@ class classification:
         classifier_dict['tree1'] = DecisionTreeClassifier()
         classifier_dict['tree2'] = DecisionTreeClassifier()
         classifier_dict['bagging3'] = BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
-        scores = self.create_class_specific_classifier(X, y, test_data, scores, classifier_dict, "Bagging_tree_decision_" + str(estimators))
+        scores = self.create_class_specific_classifier(X, y, test_data, scores, classifier_dict, "Bagging_tree_decision_")
         return scores
-
 
     def classifier_random_forests(self, X, y, test_data, scores):
         estimators = 10
@@ -201,6 +201,30 @@ class classification:
             estimators += (i * 10)
         return scores
 
+    def classifier_logistic(self, X, y, test_data, scores):
+        # This is not working yet.
+        logistic_regression = OrderedDict()
+        logistic_regression['logistic1'] = LogisticRegression()
+        logistic_regression['logistic1'] = LogisticRegression()
+        logistic_regression['logistic1'] = LogisticRegression()
+        scores = self.create_class_specific_classifier(X, y, test_data, scores, logistic_regression, "regression_")
+        return scores
+
+    # Do Randomization
+    # X : {array-like, sparse matrix} of shape = [n_samples, n_features]
+    # Y : array-like, shape = [n_samples]
+    def classifier_randomization(self, X, y, test_data, scores):
+        estimators = 10
+        for i in range(2, 8):
+            print("Running random classifiers with " + str(estimators) + " estimators...")
+            random_dict = OrderedDict()
+            random_dict['random1'] = ExtraTreesClassifier(200)
+            random_dict['random2'] = ExtraTreesClassifier(200)
+            random_dict['random3'] = ExtraTreesClassifier(200)
+            scores = self.create_class_specific_classifier(X, y, test_data, scores, random_dict, "random_" + str(estimators))
+            estimators += (i * 10)
+        return scores
+
     #def classifier_bayes_gaussian(self, X, y, test_data, scores):
 
 
@@ -222,13 +246,15 @@ class classification:
         # scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
         # scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
         # scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
-        scores = self.classifier_boosting(training_data, training_label, test_data, scores)
+        # scores = self.classifier_boosting(training_data, training_label, test_data, scores)
+        # scores = self.classifier_logistic(training_data, training_label, test_data, scores)
+        scores = self.classifier_randomization(training_data, training_label, test_data, scores)
 
         print("Cross validation scores are...")
         print(scores)
 
         with open("scores.csv", 'a') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=["name", "tree1", "tree2", "tree3"])
+            writer = csv.DictWriter(csvfile, fieldnames=["name", "random1", "random2", "random3"])
             writer.writeheader()
             writer.writerow(scores)
 
