@@ -6,6 +6,7 @@ from sklearn.ensemble import BaggingClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn import cross_validation
 from sklearn.preprocessing import Imputer
@@ -218,10 +219,25 @@ class classification:
         for i in range(2, 8):
             print("Running random classifiers with " + str(estimators) + " estimators...")
             random_dict = OrderedDict()
-            random_dict['random1'] = ExtraTreesClassifier(200)
-            random_dict['random2'] = ExtraTreesClassifier(200)
-            random_dict['random3'] = ExtraTreesClassifier(200)
+            random_dict['random1'] = ExtraTreesClassifier(estimators)
+            random_dict['random2'] = ExtraTreesClassifier(estimators)
+            random_dict['random3'] = ExtraTreesClassifier(estimators)
             scores = self.create_class_specific_classifier(X, y, test_data, scores, random_dict, "random_" + str(estimators))
+            estimators += (i * 10)
+        return scores
+
+    # Do Randomization + forest
+    # X : {array-like, sparse matrix} of shape = [n_samples, n_features]
+    # Y : array-like, shape = [n_samples]
+    def classifier_randomization_forest(self, X, y, test_data, scores):
+        estimators = 10
+        for i in range(2, 8):
+            print("Running random classifiers with " + str(estimators) + " estimators...")
+            random_dict = OrderedDict()
+            random_dict['random1'] = ExtraTreesClassifier(estimators)
+            random_dict['forest2'] = RandomForestClassifier(n_estimators=estimators)
+            random_dict['forest3'] = RandomForestClassifier(n_estimators=estimators)
+            scores = self.create_class_specific_classifier(X, y, test_data, scores, random_dict, "random_forest_" + str(estimators))
             estimators += (i * 10)
         return scores
 
@@ -248,13 +264,14 @@ class classification:
         # scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
         # scores = self.classifier_boosting(training_data, training_label, test_data, scores)
         # scores = self.classifier_logistic(training_data, training_label, test_data, scores)
-        scores = self.classifier_randomization(training_data, training_label, test_data, scores)
+        # scores = self.classifier_randomization(training_data, training_label, test_data, scores)
+        scores = self.classifier_randomization_forest(training_data, training_label, test_data, scores)
 
         print("Cross validation scores are...")
         print(scores)
 
         with open("scores.csv", 'a') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=["name", "random1", "random2", "random3"])
+            writer = csv.DictWriter(csvfile, fieldnames=["name", "random1", "forest2", "forest3"])
             writer.writeheader()
             writer.writerow(scores)
 
