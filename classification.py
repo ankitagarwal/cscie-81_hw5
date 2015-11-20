@@ -5,6 +5,7 @@ from collections import OrderedDict
 from sklearn.ensemble import BaggingClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn import cross_validation
@@ -42,7 +43,7 @@ class classification:
             reader = csv.reader(f, delimiter="\t")
             for row in reader:
                 # Dropping last item as it is an empty object
-                data.append(row[:-1])
+                data.append([None if x == 'NA' else float(x) for x in row[:-1]])
         return data
 
     # Remove missing values from data and replace then with NaN for imputer to work.
@@ -213,18 +214,27 @@ class classification:
                 writer.writeheader()
             writer.writerow(cross_scores)
 
+
     def main(self):
         scores = []
         print("Loading files...")
         training_data = self.load_training_data()
         training_label = self.load_training_label()
         test_data = self.load_test_data()
+        #test_data = [[float(y) for y in x] for x in test_data]
+        print("Test data type:")
+        print(type(test_data[0][0]))
         training_data = self.remove_missing_values(training_data)
 
         print("Doing imputation...")
-        imp = Imputer(strategy='most_frequent', axis=0)
+        imp = Imputer(strategy='mean', axis=0)
         imp.fit(training_data, training_label)
+        print("Taining data type:")
+        print(type(training_data[0][0]))
         training_data = imp.transform(training_data)
+
+
+
 
         ####
         # There are 7 options for classifiers that you can use:
@@ -238,11 +248,10 @@ class classification:
         # 8. Gaussian
         #####
 
-        filename = "244_100_rem"
-        classStrings = ["random_1", "forest_2", "forest_3"]
+        filename = "555_100_rem"
+        classStrings = ["bagging_1", "bagging_2", "bagging_3"]
         classifier_dict = self.getClassifiers(classStrings, 100)
         cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filename)
-
         print("Cross validation scores are...")
         print(cross_scores)
         self.writeScores(cross_scores, classStrings)
