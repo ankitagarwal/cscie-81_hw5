@@ -153,51 +153,76 @@ class classification:
         #returns the index of the maximum conf score
         return conf_scores.index(max(conf_scores))+1;
         
-    # Decision tree
+
     # X : {array-like, sparse matrix} of shape = [n_samples, n_features]
     # Y : array-like, shape = [n_samples]
 
-    def classifier_tree(self):
+    def classifier_tree(self, boost=False, bag=False):
         return DecisionTreeClassifier()
 
-    def classifier_bagging_trees(self, estimators):
-        return BaggingClassifier(DecisionTreeClassifier(), estimators, 0.67, 1.0, True, True)
+    def classifier_bagging_trees(self, estimators, classifier=DecisionTreeClassifier()):
+        print("BAGGING!")
+        return BaggingClassifier(classifier, estimators, 0.67, 1.0, True, True)
 
-    def classifier_random_forests(self, estimators):
+    def classifier_boosting(self, estimators, classifier=DecisionTreeClassifier()):
+        print("BOOSTING!")
+        return AdaBoostClassifier(classifier, n_estimators=estimators)
+
+    def classifier_random_forests(self, estimators, boost=False, bag=False):
+        print("RANDOM FOREST")
+        if(boost):
+            return self.classifier_boosting(estimators, RandomForestClassifier(n_estimators=estimators))
+        if(bag):
+            return self.classifier_bagging_trees(estimators, RandomForestClassifier(n_estimators=estimators))
         return RandomForestClassifier(n_estimators=estimators)
 
-    def classifier_boosting(self, estimators):
-        return AdaBoostClassifier(DecisionTreeClassifier(), n_estimators=estimators)
 
-    def classifier_logistic(self):
+    def classifier_logistic(self, boost=False, bag=False):
+        print("LOGISTIC")
+        if(boost):
+            return self.classifier_boosting(10, LogisticRegression())
+        if(bag):
+            return self.classifier_bagging_trees(10, LogisticRegression())
         return LogisticRegression()
 
-    def classifier_randomization(self, estimators):
+    def classifier_randomization(self, estimators, boost=False, bag=False):
         estimators = estimators
+        print("RANDOM!")
+        if(boost):
+            return self.classifier_boosting(estimators, ExtraTreesClassifier(estimators))
+        if(bag):
+            return self.classifier_bagging_trees(estimators, classifier=ExtraTreesClassifier(estimators))
+            
         return ExtraTreesClassifier(estimators)
         
-    def classifier_bayes_gaussian(self):
+    def classifier_bayes_gaussian(self, boost=False, bag=False):
+        print("GAUSSIAN")
+        if(boost):
+            return self.classifier_boosting(10, GaussianNB())
+        if(bag):
+            return self.classifier_bagging_trees(10, GaussianNB())
         return GaussianNB()
 
-    def getClassifiers(self, classKeywords, estimators):
+
+    def getClassifiers(self, classKeywords, estimators, boost=False, bag=False):
         classifiers = OrderedDict()
         i = 1
         for keyword in classKeywords:
             print("keyword1 is "+keyword)
             if keyword.startswith("gaussian"):
-                classifiers[keyword] = self.classifier_bayes_gaussian()
+                classifiers[keyword] = self.classifier_bayes_gaussian(boost, bag)
             elif keyword.startswith("random"):
-                classifiers[keyword] = self.classifier_randomization(estimators)
+                classifiers[keyword] = self.classifier_randomization(estimators, boost, bag)
             elif keyword.startswith("logistic"):
-                classifiers[keyword] = self.classifier_logistic()
+                classifiers[keyword] = self.classifier_logistic(boost, bag)
             elif keyword.startswith("boosting"):
-                classifiers[keyword] = self.classifier_boosting(estimators)
+                classifiers[keyword] = self.classifier_boosting(estimators, boost, bag)
             elif keyword.startswith("forest"):
-                classifiers[keyword] = self.classifier_random_forests(estimators)
+                classifiers[keyword] = self.classifier_random_forests(estimators, boost, bag)
             elif keyword.startswith("bagging"):
-                classifiers[keyword] = self.classifier_bagging_trees(estimators)
+                classifiers[keyword] = self.classifier_bagging_trees(estimators, boost, bag)
             elif keyword.startswith("decision"):
-                classifiers[keyword] = self.classifier_tree()
+                classifiers[keyword] = self.classifier_tree(boost, bag)
             i += 1
         print(classifiers)
         return classifiers
@@ -214,9 +239,9 @@ class classification:
                 writer.writeheader()
             writer.writerow(cross_scores)
 
-
-    def main(self):
-        scores = []
+    #Loads test and training data from files
+    #returns data and data labels
+    def loadData(self):
         print("Loading files...")
         training_data = self.load_training_data()
         training_label = self.load_training_label()
@@ -229,13 +254,14 @@ class classification:
         print("Doing imputation...")
         imp = Imputer(strategy='mean', axis=0)
         imp.fit(training_data, training_label)
-        print("Taining data type:")
+        print("Training data type:")
         print(type(training_data[0][0]))
         training_data = imp.transform(training_data)
+        return training_data, training_label, test_data
 
+    def main(self):
 
-
-
+        training_data, training_label, test_data = self.loadData()
         ####
         # There are 7 options for classifiers that you can use:
         # 1. gaussian
@@ -244,18 +270,16 @@ class classification:
         # 4. forest
         # 5. bagging
         # 6. decision
-        # 7. Logistic
-        # 8. Gaussian
         #####
 
-        filename = "244_100_rem"
-        classStrings = ["logistic_1", "logistic_2", "logistic_3"]
-        classifier_dict = self.getClassifiers(classStrings, 100)
+
+        filename = "111_boost_rem"
+        classStrings = ["gaussian_1", "gaussian_2", "gaussian_3"]
+        classifier_dict = self.getClassifiers(classStrings, 80, True, False)
         cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filename)
         print("Cross validation scores are...")
         print(cross_scores)
         self.writeScores(cross_scores, classStrings)
-
 
 
 classification = classification()
