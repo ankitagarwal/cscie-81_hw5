@@ -8,6 +8,7 @@ from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn import cross_validation
 from sklearn.preprocessing import Imputer
+from sklearn.ensemble import ExtraTreesClassifier
 
 import csv
 import numpy as np
@@ -154,6 +155,15 @@ class classification:
             estimators += (i * 10)
         return scores
 
+    def classifier_random_forest_randomization(self, X, y, test_data, scores):
+        estimators = 400
+        print("Running Random forest classifiers with " + str(estimators) + " estimators...")
+        forest1 = ExtraTreesClassifier(n_estimators=estimators)
+        forest2 = RandomForestClassifier(n_estimators=estimators)
+        forest3 = RandomForestClassifier(n_estimators=estimators)
+        scores = self.create_class_specific_classifier(X, y, test_data, scores, forest1, forest2, forest3, "forest_rand" + str(estimators))
+        return scores
+
     def main(self):
         scores = []
         print("Loading files...")
@@ -170,7 +180,8 @@ class classification:
         # scores = self.classifier_tree(training_data, training_label, test_data, scores)
         # scores = self.classifier_bagging_trees(training_data, training_label, test_data, scores)
         # scores = self.classifier_bagging_trees_and_decision(training_data, training_label, test_data, scores)
-        scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
+        # scores = self.classifier_random_forests(training_data, training_label, test_data, scores)
+        scores = self.classifier_random_forest_randomization(training_data, training_label, test_data, scores)
 
         print("Cross validation scores are...")
         print(scores)
