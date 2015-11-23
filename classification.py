@@ -7,10 +7,13 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.cross_validation import cross_val_score
 from sklearn import cross_validation
 from sklearn.preprocessing import Imputer
 from sklearn.linear_model.logistic import LogisticRegression
+
+from sklearn.linear_model import SGDClassifier
 
 from sklearn.naive_bayes import GaussianNB
 
@@ -76,7 +79,7 @@ class classification:
         return binary_labels
 
 
-    def train(self, X, y, test_data, classifier, key):
+    def train(self, X, y, test_data, classifier, key, queue=True):
         global resultQueue
         try:
             print("Training classifier "+key)
@@ -88,15 +91,17 @@ class classification:
             print(classifier.classes_)
             print("Predicting and calculating probabilities...")
             conf_score = classifier.predict_proba(test_data)
-            
-            resultQueue.put((key, cross_score, conf_score))
+            if queue:
+                resultQueue.put((key, cross_score, conf_score))
+            else:
+                return cross_score, conf_score
         except Exception as e:
             print("OH NO IT'S AN EXCEPTION!")
             print(e)
         print("Done training classifier "+key)
 
-
-    def create_class_specific_classifier(self, X, y, test_data, classifiers, filename):
+    #Set parallel to false for easier debugging
+    def create_class_specific_classifier(self, X, y, test_data, classifiers, filename, parallel=True):
         global resultQueue
 
         output_data = []
@@ -111,24 +116,29 @@ class classification:
         for key in classifiers.keys():
             classNames.append(key)
 
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            for key in classifiers.keys():
-                    #Pre-populate these scores so that the proper order is maintained
-                    cross_scores[key] = None
-                    conf_scores[key] = None
-                    executor.submit(self.train, X, y, test_data, classifiers[key], key)
-            
+        if(parallel):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                for key in classifiers.keys():
+                        #Pre-populate these scores so that the proper order is maintained
+                        cross_scores[key] = None
+                        conf_scores[key] = None
+                        executor.submit(self.train, X, y, test_data, classifiers[key], key)
+                
 
-        while not resultQueue.empty():
-            data = resultQueue.get();
-            #We have some data!
-            print("Collecting data for the results of "+str(data[0]))
-            #(key, cross_score, conf_score)
-            print("DATA 1 is:")
-            print(data[1])
-            cross_scores[data[0]] = data[1]
-            conf_scores[data[0]] = data[2]
+            while not resultQueue.empty():
+                data = resultQueue.get();
+                #We have some data!
+                print("Collecting data for the results of "+str(data[0]))
+                #(key, cross_score, conf_score)
+                print("DATA 1 is:")
+                print(data[1])
+                cross_scores[data[0]] = data[1]
+                conf_scores[data[0]] = data[2]
+        else:
+            for key in classifiers.keys():
+                cross_score, conf_score = self.train(X, y, test_data, classifiers[key], key, False)
+                cross_scores[key] = data[0]
+                conf_scores[key] = data[1]
 
         print("Writing to output file...")
         for index, row in enumerate(test_data):
@@ -170,6 +180,8 @@ class classification:
 
     def classifier_random_forests(self, estimators, boost=False, bag=False):
         print("RANDOM FOREST")
+        if boost and bag:
+            return self.classifier_boosting(estimators, self.classifier_bagging_trees(estimators, RandomForestClassifier(n_estimators=estimators)))
         if(boost):
             return self.classifier_boosting(estimators, RandomForestClassifier(n_estimators=estimators))
         if(bag):
@@ -180,10 +192,25 @@ class classification:
     def classifier_logistic(self, boost=False, bag=False):
         print("LOGISTIC")
         if(boost):
-            return self.classifier_boosting(10, LogisticRegression())
+            #return self.classifier_boosting(10, LogisticRegression())
+            #Workaround for boosting with LogisticRegression
+            return self.classifier_boosting(10, SGDClassifier(loss='log'))
+            
         if(bag):
             return self.classifier_bagging_trees(10, LogisticRegression())
         return LogisticRegression()
+
+    def classifier_tree_regressor(self, estimators, boost=False, bag=False):
+        estimators = estimators
+        print("RANDOM!")
+        if boost and bag:
+            return self.classifier_boosting(estimators, self.classifier_bagging(ExtraTreesRegressor(estimators)))
+        if(boost):
+            return self.classifier_boosting(estimators, ExtraTreesRegressor(estimators))
+        if(bag):
+            return self.classifier_bagging_trees(estimators, classifier=ExtraTreesRegressor(estimators))
+            
+        return ExtraTreesRegressor(estimators)
 
     def classifier_randomization(self, estimators, boost=False, bag=False):
         estimators = estimators
@@ -193,7 +220,7 @@ class classification:
         if(bag):
             return self.classifier_bagging_trees(estimators, classifier=ExtraTreesClassifier(estimators))
             
-        return ExtraTreesClassifier(estimators)
+        return ExtraTreesClassifier(estimators, criterion="entropy")
         
     def classifier_bayes_gaussian(self, boost=False, bag=False):
         print("GAUSSIAN")
@@ -223,6 +250,8 @@ class classification:
                 classifiers[keyword] = self.classifier_bagging_trees(estimators, boost, bag)
             elif keyword.startswith("decision"):
                 classifiers[keyword] = self.classifier_tree(boost, bag)
+            elif keyword.startswith("treereg"):
+                classifiers[keyword] = self.classifier_tree_regressor(boost, bag)
             i += 1
         print(classifiers)
         return classifiers
@@ -230,6 +259,7 @@ class classification:
 #scores = self.create_class_specific_classifier(X, y, test_data, gaussNB, "gaussNB")
 
     def writeScores(self, cross_scores, headers):
+        print(cross_scores)
         headers.insert(0,"name")
         with open("scores.csv", 'a') as csvfile:
             #for i in range(0, len(cross_scores)):
@@ -270,12 +300,13 @@ class classification:
         # 4. forest
         # 5. bagging
         # 6. decision
+        # 7. treereg
         #####
 
 
-        filename = "111_boost_rem"
-        classStrings = ["gaussian_1", "gaussian_2", "gaussian_3"]
-        classifier_dict = self.getClassifiers(classStrings, 80, True, False)
+        filename = "666_boost_bag_10_rem"
+        classStrings = ["forest_1", "forest_2", "forest_3"]
+        classifier_dict = self.getClassifiers(classStrings, 10, True, True)
         cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filename)
         print("Cross validation scores are...")
         print(cross_scores)
