@@ -47,6 +47,9 @@ class classification:
             for row in reader:
                 # Dropping last item as it is an empty object
                 data.append([None if x == 'NA' else float(x) for x in row[:-1]])
+        print("DATA IS: ")
+        for i in range(10):
+            print(data[i])
         return data
 
     # Remove missing values from data and replace then with NaN for imputer to work.
@@ -136,7 +139,7 @@ class classification:
                 conf_scores[data[0]] = data[2]
         else:
             for key in classifiers.keys():
-                cross_score, conf_score = self.train(X, y, test_data, classifiers[key], key, False)
+                data = self.train(X, y, test_data, classifiers[key], key, False)
                 cross_scores[key] = data[0]
                 conf_scores[key] = data[1]
 
@@ -144,6 +147,8 @@ class classification:
         for index, row in enumerate(test_data):
             output_row = []
             for name in classNames:
+                print("Conf score "+str(name)+" at index "+str(index)+":")
+                print(conf_scores[name][index])
                 output_row.append(conf_scores[name][index][1])
             output_row.append(self.get_final_label(output_row))
             output_data.append(output_row)
@@ -304,10 +309,10 @@ class classification:
         #####
 
 
-        filename = "666_boost_bag_10_rem"
-        classStrings = ["forest_1", "forest_2", "forest_3"]
-        classifier_dict = self.getClassifiers(classStrings, 10, True, True)
-        cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filename)
+        filename = "333_test_2_rem"
+        classStrings = ["logistic_1", "logistic_2", "logistic_3"]
+        classifier_dict = self.getClassifiers(classStrings, 10, False, False)
+        cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filename, False)
         print("Cross validation scores are...")
         print(cross_scores)
         self.writeScores(cross_scores, classStrings)
