@@ -13,6 +13,8 @@ from sklearn.preprocessing import Imputer
 from sklearn.linear_model.logistic import LogisticRegression
 
 from sklearn.naive_bayes import GaussianNB
+from sknn.mlp import Classifier, Layer
+from sklearn import svm
 
 import csv
 import numpy as np
@@ -64,17 +66,6 @@ class classification:
             else:
                 binary_labels.append(0)
         return binary_labels
-
-
-    def create_binary_labels(self, classes, label):
-        binary_labels = []
-        for clas in classes:
-            if int(clas) == int(label):
-                binary_labels.append(1)
-            else:
-                binary_labels.append(0)
-        return binary_labels
-
 
     def train(self, X, y, test_data, classifier, key):
         global resultQueue
@@ -203,12 +194,35 @@ class classification:
             return self.classifier_bagging_trees(10, GaussianNB())
         return GaussianNB()
 
+    def classifier_svm(self, boost=False, bag=False):
+        print("SVM")
+        if(boost):
+            return self.classifier_boosting(10, svm.SVC(probability=True))
+        if(bag):
+            return self.classifier_bagging_trees(10, svm.SVC(probability=True))
+        return svm.SVC(probability=True)
+
+    def classifier_nn(self, estimators, boost=False, bag=False):
+        # Not working yet.
+        print("Neural Network")
+        nn = Classifier(
+            layers=[
+                Layer("Maxout", units=estimators, pieces=2),
+                Layer("Softmax")],
+            learning_rate=0.001,
+            n_iter=25)
+        if(boost):
+            return self.classifier_boosting(10, nn)
+        if(bag):
+            return self.classifier_bagging_trees(10, nn)
+        return nn
+
 
     def getClassifiers(self, classKeywords, estimators, boost=False, bag=False):
         classifiers = OrderedDict()
         i = 1
         for keyword in classKeywords:
-            print("keyword1 is "+keyword)
+            print("keyword" + str(i) + " is " + keyword)
             if keyword.startswith("gaussian"):
                 classifiers[keyword] = self.classifier_bayes_gaussian(boost, bag)
             elif keyword.startswith("random"):
@@ -223,6 +237,10 @@ class classification:
                 classifiers[keyword] = self.classifier_bagging_trees(estimators, boost, bag)
             elif keyword.startswith("decision"):
                 classifiers[keyword] = self.classifier_tree(boost, bag)
+            elif keyword.startswith("nn"):
+                classifiers[keyword] = self.classifier_nn(estimators, boost, bag)
+            elif keyword.startswith("svm"):
+                classifiers[keyword] = self.classifier_svm(boost, bag)
             i += 1
         print(classifiers)
         return classifiers
@@ -270,16 +288,46 @@ class classification:
         # 4. forest
         # 5. bagging
         # 6. decision
+        # 7. nn
+        # 8. svm
+        # 9. boosting
         #####
 
+        # filenames = ["111_boost_rem", "123_rain", "keep_guessing", "neuros"]
+        # classStrings = [["gaussian_1", "gaussian_2", "gaussian_3"],
+        #                 ["forest_1", "forest_2", "forest_3"],
+        #                 ["logistic_1", "logistic_2", "logistic_3"],
+        #                 ["nn_1", "nn_2", "nn_3"]]
+        # for index, classString in enumerate(classStrings):
+        #     classifier_dict = self.getClassifiers(classString, 400, False, False)
+        #     cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filenames[index])
+        #     print("Cross validation scores are...")
+        #     print(cross_scores)
+        #     self.writeScores(cross_scores, classString)
 
-        filename = "111_boost_rem"
-        classStrings = ["gaussian_1", "gaussian_2", "gaussian_3"]
-        classifier_dict = self.getClassifiers(classStrings, 80, True, False)
-        cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filename)
-        print("Cross validation scores are...")
-        print(cross_scores)
-        self.writeScores(cross_scores, classStrings)
+        # filenames = ["111_random_rain", "123_random_gaussianrain", "random_guess", "neuros"]
+        # classStrings = [["random_1", "forest_2", "forest_3"],
+        #                 ["random_1", "gaussian_2", "forest_3"],
+        #                 ["random_1", "gaussian_2", "gaussian_3"]]
+        # for index, classString in enumerate(classStrings):
+        #     classifier_dict = self.getClassifiers(classString, 400, False, False)
+        #     cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filenames[index])
+        #     print("Cross validation scores are...")
+        #     print(cross_scores)
+        #     self.writeScores(cross_scores, classString)
+
+
+        filenames = ["111_support"]
+        classStrings = [["svm_1", "svm_2", "svm_3"]]
+        for index, classString in enumerate(classStrings):
+            classifier_dict = self.getClassifiers(classString, 400, False, False)
+            cross_scores, conf_scores = self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filenames[index])
+            print("Cross validation scores are...")
+            print(cross_scores)
+            self.writeScores(cross_scores, classString)
+
+        # pip install scikit-neuralnetwork
+
 
 
 classification = classification()
