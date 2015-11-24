@@ -20,6 +20,8 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.preprocessing import label_binarize
 
 import matplotlib.pyplot as plt
+from sknn.mlp import Classifier, Layer
+from sklearn import svm
 
 import csv
 import numpy as np
@@ -90,7 +92,6 @@ class classification:
                 binary_labels.append([0,0,1])
 
         return binary_labels
-
 
     def train(self, X, y, test_data, classifier, key,queue=True):
         global resultQueue
@@ -255,6 +256,29 @@ class classification:
             return self.classifier_bagging_trees(10, GaussianNB())
         return GaussianNB()
 
+    def classifier_svm(self, boost=False, bag=False):
+        print("SVM")
+        if(boost):
+            return self.classifier_boosting(10, svm.SVC(probability=True))
+        if(bag):
+            return self.classifier_bagging_trees(10, svm.SVC(probability=True))
+        return svm.SVC(probability=True)
+
+    def classifier_nn(self, estimators, boost=False, bag=False):
+        # Not working yet.
+        print("Neural Network")
+        nn = Classifier(
+            layers=[
+                Layer("Maxout", units=estimators, pieces=2),
+                Layer("Softmax")],
+            learning_rate=0.001,
+            n_iter=25)
+        if(boost):
+            return self.classifier_boosting(10, nn)
+        if(bag):
+            return self.classifier_bagging_trees(10, nn)
+        return nn
+
 
     def classifier_svm(self, boost=False, bag=False):
         print("SVM")
@@ -283,7 +307,7 @@ class classification:
         classifiers = OrderedDict()
         i = 1
         for keyword in classKeywords:
-            print("keyword is "+keyword)
+            print("keyword" + str(i) + " is " + keyword)
             if keyword.startswith("gaussian"):
                 classifiers[keyword] = self.classifier_bayes_gaussian(boost, bag)
             elif keyword.startswith("random"):
@@ -300,6 +324,10 @@ class classification:
                 classifiers[keyword] = self.classifier_tree(boost, bag)
             elif keyword.startswith("treereg"):
                 classifiers[keyword] = self.classifier_tree_regressor(estimators,boost, bag)
+            elif keyword.startswith("nn"):
+                classifiers[keyword] = self.classifier_nn(estimators, boost, bag)
+            elif keyword.startswith("svm"):
+                classifiers[keyword] = self.classifier_svm(boost, bag)
             i += 1
         print(classifiers)
         return classifiers
@@ -393,6 +421,7 @@ class classification:
         # 9. svm
         # 10. boosting
         #####
+
         ### MODIFY THE LINES BELOW WITH THE APPROPRIATE VALUES# 
         title = "Gaussian Naive Bayes"
         filename = "111_gauss"
