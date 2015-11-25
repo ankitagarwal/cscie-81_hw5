@@ -394,13 +394,13 @@ class classification:
         # 10. boosting
         #####
         ### MODIFY THE LINES BELOW WITH THE APPROPRIATE VALUES# 
-        title = "Support Vector Machines"
-        filename = "999_svm"
-        classStrings = ["svm_1", "svm_2", "svm_3"]
+        title = "Gaussian Naive Bayes"
+        filename = "111_gauss"
+        classStrings = ["gaussian_1", "gaussian_2", "gaussian_3"]
         runParallel = True
         classifier_dict = self.getClassifiers(classStrings, 10, False, False)
         cross_scores, conf_scores, roc_data= self.create_class_specific_classifier(training_data, training_label, test_data, classifier_dict, filename, runParallel)
-        #training_label = y (iris target)
+
         auc_scores = self.makeROCPlot(title, filename, training_label, roc_data)
 
         self.writeScores(cross_scores,auc_scores, classStrings)
